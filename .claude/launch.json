@@ -1,0 +1,16 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "dev-emulators",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite", "dev", "--port", "8090", "--strictPort"],
+      "port": 8090,
+      "env": {
+        "VITE_FIREBASE_AUTH_EMULATOR_HOST": "127.0.0.1:9099",
+        "VITE_FIRESTORE_EMULATOR_HOST": "127.0.0.1:8085",
+        "VITE_FIREBASE_STORAGE_EMULATOR_HOST": "127.0.0.1:9199"
+      }
+    }
+  ]
+}
