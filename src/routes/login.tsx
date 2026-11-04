@@ -1,10 +1,11 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 import { AuthShell } from "@/components/app/AuthShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useSession } from "@/lib/session";
 import { loginUser } from "@/lib/users";
 
 export const Route = createFileRoute("/login")({
@@ -21,10 +22,15 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const nav = useNavigate();
+  const session = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (session) nav({ to: "/dashboard", replace: true });
+  }, [session, nav]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();

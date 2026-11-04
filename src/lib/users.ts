@@ -72,6 +72,17 @@ export async function registerUser(input: {
     };
 
     await withTimeout(setDoc(docRef, userProfile), TIMEOUT);
+
+    // Automatically establish the session so the new user is directly logged in
+    const session: Session = {
+      userId: userProfile.id,
+      fullName: userProfile.fullName,
+      email: userProfile.email,
+      role: userProfile.role,
+      organisation: userProfile.organisation,
+    };
+    setSession(session);
+
     return { ok: true };
   } catch (err) {
     console.error("registerUser error:", err);

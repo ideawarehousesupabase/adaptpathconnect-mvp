@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { AuthShell } from "@/components/app/AuthShell";
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useSession } from "@/lib/session";
 import { registerUser, ROLES, type Role } from "@/lib/users";
 
 export const Route = createFileRoute("/register")({
@@ -25,10 +26,15 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function RegisterPage() {
   const nav = useNavigate();
+  const session = useSession();
   const [f, setF] = useState({ fullName: "", email: "", password: "", confirm: "", role: "" as Role | "", organisation: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+
+  useEffect(() => {
+    if (session) nav({ to: "/dashboard", replace: true });
+  }, [session, nav]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -41,8 +47,8 @@ function RegisterPage() {
     try {
       const res = await registerUser({ fullName: f.fullName, email: f.email, password: f.password, role: f.role as Role, organisation: f.organisation });
       if (!res.ok) return setError(res.error);
-      toast.success("Account created successfully.");
-      nav({ to: "/login" });
+      toast.success("Account created successfully. Welcome!");
+      nav({ to: "/dashboard" });
     } catch (err) {
       console.error(err);
       setError("Could not reach the account service. Please try again.");
