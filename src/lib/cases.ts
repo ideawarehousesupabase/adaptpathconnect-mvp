@@ -16,6 +16,7 @@ import {
   type AuditEvent,
   type CaseDerived,
   type CasePrimary,
+  type ComponentKey,
   type DfgCase,
   type EventType,
 } from "@/lib/domain";
@@ -244,11 +245,33 @@ export function saveAssessment(actor: Actor, id: string, a: Omit<Assessment, "co
   });
 }
 
-export function saveDesign(actor: Actor, id: string, wcX: number) {
+export function saveDesign(
+  actor: Actor,
+  id: string,
+  wcXOrDesign: number | { wcX?: number; positions?: Partial<Record<ComponentKey, { x: number; y: number }>> },
+) {
   return mutate(actor, id, (c) => {
     if (!c.assessment) throw new CaseError("Complete the OT assessment before saving a design.");
     const version = (c.design?.version ?? 0) + 1;
-    const next = { ...c, design: { wcX: Math.round(wcX), version, savedAt: new Date().toISOString() } };
+    let wcX: number;
+    let positions: Partial<Record<ComponentKey, { x: number; y: number }>> | undefined;
+
+    if (typeof wcXOrDesign === "number") {
+      wcX = Math.round(wcXOrDesign);
+    } else {
+      positions = wcXOrDesign.positions;
+      wcX = Math.round(wcXOrDesign.wcX ?? positions?.wc?.x ?? 800);
+    }
+
+    const next = {
+      ...c,
+      design: {
+        wcX,
+        ...(positions ? { positions } : {}),
+        version,
+        savedAt: new Date().toISOString(),
+      },
+    };
     const d = processCase(next);
     const events: EventDraft[] = [{ type: "design_saved", action: version === 1 ? "Bathroom design created" : "Bathroom design updated", detail: `Version ${version}` }];
     const failing = d.rules.filter((r) => r.status === "review");
@@ -263,7 +286,7 @@ export function saveDesign(actor: Actor, id: string, wcX: number) {
 
 export function confirmCosting(actor: Actor, id: string) {
   return mutate(actor, id, (c, d) => {
-    if (!d.designApproved || !d.funding) throw new CaseError("Save a design that passes every accessibility check first.");
+    if (!c.design || !d.funding) throw new CaseError("Save a bathroom design first.");
     return {
       next: { ...c, costing: { confirmedAt: new Date().toISOString(), confirmedTotal: d.funding.total } },
       events: [{ type: "costing_confirmed", action: "Schedule of works confirmed", detail: `${d.works.length} line items` }],

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EvidenceSection } from "@/components/app/EvidenceSection";
 import { Section } from "@/components/app/ui-bits";
 import { CaseError, saveAssessment } from "@/lib/cases";
@@ -20,6 +21,21 @@ export const Route = createFileRoute("/_app/cases/$id/assessment")({
   component: Assessment,
 });
 
+type MeasurementUnit = "mm" | "cm" | "m";
+
+function mmToUnit(mm: number, unit: MeasurementUnit): string {
+  if (!Number.isFinite(mm) || mm === 0) return "";
+  if (unit === "m") return String(Math.round((mm / 1000) * 100) / 100);
+  if (unit === "cm") return String(Math.round((mm / 10) * 10) / 10);
+  return String(Math.round(mm));
+}
+
+function unitToMm(val: number, unit: MeasurementUnit): number {
+  if (unit === "m") return Math.round(val * 1000);
+  if (unit === "cm") return Math.round(val * 10);
+  return Math.round(val);
+}
+
 function Choice({ label, options, value, onChange }: { label: string; options: readonly string[]; value: string; onChange: (v: string) => void }) {
   return (
     <div>
@@ -32,7 +48,10 @@ function Choice({ label, options, value, onChange }: { label: string; options: r
             aria-checked={value === o}
             key={o}
             onClick={() => onChange(o)}
-            className={cn("rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors", value === o ? "border-primary bg-info-soft text-primary" : "border-input bg-card hover:bg-muted")}
+            className={cn(
+              "rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors cursor-pointer",
+              value === o ? "border-primary bg-info-soft text-primary" : "border-input bg-card hover:bg-muted"
+            )}
           >
             {o}
           </button>
@@ -46,7 +65,7 @@ function Checks({ options, value, onChange }: { options: readonly string[]; valu
   return (
     <div className="grid gap-2 sm:grid-cols-2">
       {options.map((o) => (
-        <label key={o} className="flex cursor-pointer items-center gap-3 rounded-lg border border-input px-3 py-2.5 text-sm hover:bg-muted">
+        <label key={o} className="flex cursor-pointer items-center gap-3 rounded-lg border border-input px-3 py-2.5 text-sm hover:bg-muted transition-colors">
           <Checkbox checked={value.includes(o)} onCheckedChange={(c) => onChange(c ? [...value, o] : value.filter((x) => x !== o))} />
           {o}
         </label>
@@ -61,9 +80,45 @@ function Assessment() {
   const session = useCurrentUser();
   const c = useCase(id)!;
   const [a, setA] = useState(() => (c.assessment ? assessmentToForm(c.assessment) : EMPTY_ASSESSMENT));
+  const [unit, setUnit] = useState<MeasurementUnit>("mm");
+  const [displayVals, setDisplayVals] = useState(() => ({
+    roomLength: c.assessment ? String(c.assessment.roomLength) : a.roomLength,
+    roomWidth: c.assessment ? String(c.assessment.roomWidth) : a.roomWidth,
+    doorWidth: c.assessment ? String(c.assessment.doorWidth) : a.doorWidth,
+  }));
   const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
-  const up = <K extends keyof typeof a>(k: K, v: (typeof a)[K]) => setA({ ...a, [k]: v });
+
+  const up = <K extends keyof typeof a>(k: K, v: (typeof a)[K]) => setA((prev) => ({ ...prev, [k]: v }));
+
+  function handleUnitChange(newUnit: MeasurementUnit) {
+    if (newUnit === unit) return;
+    const nextDisplay = { ...displayVals };
+    (["roomLength", "roomWidth", "doorWidth"] as const).forEach((key) => {
+      const currentMm = Number(a[key]);
+      if (Number.isFinite(currentMm) && currentMm > 0) {
+        nextDisplay[key] = mmToUnit(currentMm, newUnit);
+      }
+    });
+    setUnit(newUnit);
+    setDisplayVals(nextDisplay);
+  }
+
+  function handleMeasureChange(key: "roomLength" | "roomWidth" | "doorWidth", inputVal: string) {
+    setDisplayVals((prev) => ({ ...prev, [key]: inputVal }));
+    const trimmed = inputVal.trim();
+    if (!trimmed) {
+      up(key, "");
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      const mm = unitToMm(parsed, unit);
+      up(key, String(mm));
+    } else {
+      up(key, trimmed);
+    }
+  }
 
   async function complete() {
     const res = validateAssessment(a);
@@ -82,6 +137,12 @@ function Assessment() {
     }
   }
 
+  const measureFields = [
+    { key: "roomLength" as const, label: "Room Length", placeholder: unit === "m" ? "e.g. 2.4" : unit === "cm" ? "e.g. 240" : "e.g. 2400" },
+    { key: "roomWidth" as const, label: "Room Width", placeholder: unit === "m" ? "e.g. 1.8" : unit === "cm" ? "e.g. 180" : "e.g. 1800" },
+    { key: "doorWidth" as const, label: "Door Width", placeholder: unit === "m" ? "e.g. 0.85" : unit === "cm" ? "e.g. 85" : "e.g. 850" },
+  ];
+
   return (
     <div className="space-y-5">
       <p className="text-sm text-muted-foreground">
@@ -99,11 +160,50 @@ function Assessment() {
             <Choice label="Carer Support" options={OPTIONS.carerSupport} value={a.carerSupport} onChange={(v) => up("carerSupport", v)} />
           </div>
         </Section>
-        <Section title="Room Measurements" description="All values in millimetres.">
+        <Section
+          title="Room Measurements"
+          description="Enter room dimensions in your preferred unit."
+          action={
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">Unit:</span>
+              <Select value={unit} onValueChange={(v) => handleUnitChange(v as MeasurementUnit)}>
+                <SelectTrigger className="h-8 w-24 text-xs font-semibold" aria-label="Measurement unit selector">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mm">mm</SelectItem>
+                  <SelectItem value="cm">cm</SelectItem>
+                  <SelectItem value="m">m</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          }
+        >
           <div className="grid gap-4 sm:grid-cols-3">
-            {([["roomLength", "Room Length"], ["roomWidth", "Room Width"], ["doorWidth", "Door Width"]] as const).map(([k, l]) => (
-              <div key={k} className="space-y-1.5"><Label htmlFor={k}>{l}</Label><Input id={k} inputMode="numeric" placeholder="mm" value={a[k]} onChange={(e) => up(k, e.target.value)} /></div>
-            ))}
+            {measureFields.map(({ key, label, placeholder }) => {
+              const mmValue = Number(a[key]);
+              const showMmConversion = unit !== "mm" && Number.isFinite(mmValue) && mmValue > 0;
+              return (
+                <div key={key} className="space-y-1.5">
+                  <div className="flex items-baseline justify-between">
+                    <Label htmlFor={key}>{label}</Label>
+                    <span className="text-xs text-muted-foreground font-mono">({unit})</span>
+                  </div>
+                  <Input
+                    id={key}
+                    inputMode="decimal"
+                    placeholder={placeholder}
+                    value={displayVals[key]}
+                    onChange={(e) => handleMeasureChange(key, e.target.value)}
+                  />
+                  {showMmConversion && (
+                    <p className="text-[11px] text-muted-foreground font-mono">
+                      = {mmValue.toLocaleString()} mm
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </div>
           <p className="mb-2 mt-5 text-sm font-medium">Existing Bathroom</p>
           <Checks options={OPTIONS.existingBathroom} value={a.existingBathroom} onChange={(v) => up("existingBathroom", v)} />

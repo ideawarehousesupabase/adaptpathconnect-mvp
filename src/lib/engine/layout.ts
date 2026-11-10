@@ -1,4 +1,4 @@
-import type { Assessment, BathroomLayout, DesignInput, FeatureId, NeedsProfile, PlacedComponent } from "@/lib/domain";
+import type { Assessment, BathroomLayout, ComponentKey, DesignInput, FeatureId, NeedsProfile, PlacedComponent } from "@/lib/domain";
 import { WC_TARGET_SIDE_CLEARANCE } from "@/lib/rules";
 import { doorRequirement } from "./needs";
 
@@ -10,9 +10,8 @@ const TURNING_ALLOWANCE = 600;
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 
 /**
- * Generates a dimensioned bathroom plan from the room measurements and needs
- * profile. The WC position is the only value a person edits; it comes from the
- * saved design when there is one, otherwise from the generator's recommendation.
+ * Generates a dimensioned bathroom plan from room measurements and needs.
+ * Fixtures can be positioned manually; if positions are saved, they are applied.
  */
 export function generateLayout(a: Assessment, needs: NeedsProfile, design: DesignInput | null) {
   const W = a.roomLength;
@@ -35,40 +34,90 @@ export function generateLayout(a: Assessment, needs: NeedsProfile, design: Desig
   const basin = { x: 300, y: D - basinD, w: 500, d: basinD };
   const rail = has("rails");
 
-  const wcRange = { min: basin.x + basin.w, max: Math.max(basin.x + basin.w, W - 400 - (rail ? 60 : 0)) };
+  const wcRange = { min: 0, max: Math.max(0, W - 400 - (rail ? 60 : 0)) };
   const recommendedWcX = clamp(
     basin.x + basin.w + (requirements.wcTransfer ? WC_TARGET_SIDE_CLEARANCE : WC_DEFAULT_SIDE_CLEARANCE),
-    wcRange.min,
+    0,
     wcRange.max,
   );
-  const wcX = design ? clamp(design.wcX, wcRange.min, wcRange.max) : recommendedWcX;
+  const wcX = design ? clamp(design.wcX, 0, wcRange.max) : recommendedWcX;
 
-  const components: PlacedComponent[] = [
+  const defaultComponents: PlacedComponent[] = [
     {
-      key: "shower", label: levelAccess ? "Level-access Shower" : "Shower", x: 0, y: 0, w: showerW, d: showerD,
+      key: "shower",
+      label: levelAccess ? "Level-access Shower" : "Shower",
+      x: 0,
+      y: 0,
+      w: showerW,
+      d: showerD,
       detail: levelAccess ? `${showerW} × ${showerD} mm wet area, gradient floor, no threshold` : `${showerW} × ${showerD} mm shower tray`,
     },
   ];
+
   if (has("seat")) {
-    components.push({ key: "seat", label: "Shower Seat", x: 60, y: clamp(300, 0, Math.max(0, showerD - 450)), w: 450, d: 400, detail: "Fold-down seat, 480 mm seat height" });
+    defaultComponents.push({
+      key: "seat",
+      label: "Shower Seat",
+      x: 60,
+      y: clamp(300, 0, Math.max(0, showerD - 450)),
+      w: 450,
+      d: 400,
+      detail: "Fold-down seat, 480 mm seat height",
+    });
   }
+
   if (rail) {
-    components.push({ key: "rail", label: "Grab Rail", x: W - 60, y: Math.max(0, D - 800), w: 60, d: 600, detail: "600 mm horizontal rail, 32 mm diameter" });
+    defaultComponents.push({
+      key: "rail",
+      label: "Grab Rail",
+      x: W - 60,
+      y: Math.max(0, D - 800),
+      w: 60,
+      d: 600,
+      detail: "600 mm horizontal rail, 32 mm diameter",
+    });
   }
-  components.push(
+
+  defaultComponents.push(
     {
-      key: "basin", label: "Basin", ...basin,
+      key: "basin",
+      label: "Basin",
+      ...basin,
       detail: has("basin") ? "Wall-hung basin, 750 mm rim height, knee space" : "Existing-style pedestal basin, 550 mm projection",
     },
     {
-      key: "wc", label: "WC", x: wcX, y: D - 700, w: 400, d: 700,
+      key: "wc",
+      label: "WC",
+      x: wcX,
+      y: D - 700,
+      w: 400,
+      d: 700,
       detail: has("wc") ? "Raised-height WC, 480 mm seat height" : "Standard-height WC",
     },
     {
-      key: "door", label: "Door", x: Math.max(0, W - doorW - 100), y: 0, w: doorW, d: 60,
+      key: "door",
+      label: "Door",
+      x: Math.max(0, W - doorW - 100),
+      y: 0,
+      w: doorW,
+      d: 60,
       detail: has("door") ? `${doorW} mm outward-opening door (widened from ${a.doorWidth} mm)` : `${doorW} mm existing door`,
     },
   );
+
+  // Apply custom saved positions if present
+  const customPositions = design?.positions;
+  const components = defaultComponents.map((c) => {
+    if (customPositions && customPositions[c.key]) {
+      const pos = customPositions[c.key]!;
+      return {
+        ...c,
+        x: clamp(Math.round(pos.x), 0, Math.max(0, W - c.w)),
+        y: clamp(Math.round(pos.y), 0, Math.max(0, D - c.d)),
+      };
+    }
+    return c;
+  });
 
   const layout: BathroomLayout = {
     name: design ? `Version ${design.version}` : "Proposed (not yet saved)",
@@ -86,11 +135,33 @@ export function generateLayout(a: Assessment, needs: NeedsProfile, design: Desig
   return { layout, recommendedWcX };
 }
 
-/** Returns a copy of the layout with the WC moved, kept within its allowed range. */
-export function moveWc(layout: BathroomLayout, x: number, name = "Custom"): BathroomLayout {
+/** Returns a copy of the layout with a specific component moved. */
+export function moveComponent(
+  layout: BathroomLayout,
+  key: ComponentKey,
+  x: number,
+  y: number,
+  name = "Custom",
+): BathroomLayout {
+  const W = layout.roomW;
+  const D = layout.roomD;
   return {
     ...layout,
     name,
-    components: layout.components.map((c) => (c.key === "wc" ? { ...c, x: clamp(x, layout.wcRange.min, layout.wcRange.max) } : c)),
+    components: layout.components.map((c) => {
+      if (c.key !== key) return c;
+      return {
+        ...c,
+        x: clamp(Math.round(x), 0, Math.max(0, W - c.w)),
+        y: clamp(Math.round(y), 0, Math.max(0, D - c.d)),
+      };
+    }),
   };
+}
+
+/** Returns a copy of the layout with the WC moved, kept within room bounds. */
+export function moveWc(layout: BathroomLayout, x: number, name = "Custom"): BathroomLayout {
+  const comp = layout.components.find((c) => c.key === "wc");
+  const y = comp ? comp.y : layout.roomD - 700;
+  return moveComponent(layout, "wc", x, y, name);
 }

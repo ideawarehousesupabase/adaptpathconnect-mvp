@@ -73,9 +73,15 @@ export interface Assessment {
   completedAt: string;
 }
 
-/** The only layout values a person edits; the rest of the plan is generated. */
+export interface ComponentCoordinate {
+  x: number;
+  y: number;
+}
+
+/** Layout values edited by the user; fixtures can be positioned manually. */
 export interface DesignInput {
   wcX: number;
+  positions?: Partial<Record<ComponentKey, ComponentCoordinate>>;
   version: number;
   savedAt: string;
 }

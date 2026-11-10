@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent } from "react";
-import { Camera, ExternalLink, FileText, Loader2, Ruler, Trash2 } from "lucide-react";
+import { Camera, ExternalLink, FileText, Loader2, Ruler, Trash2, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ErrorState, Section } from "@/components/app/ui-bits";
@@ -17,7 +17,7 @@ const TILES = [
 
 const size = (n: number) => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`);
 
-/** Photos and documents for a case, saved to Cloud Storage as soon as they are chosen. */
+/** Photos and documents for a case, saved to storage/Firestore as soon as chosen. */
 export function EvidenceSection({ caseId }: { caseId: string }) {
   const session = useCurrentUser();
   const { uploads, error } = useCaseUploads(session.userId, caseId);
@@ -28,7 +28,10 @@ export function EvidenceSection({ caseId }: { caseId: string }) {
 
   function choose(category: EvidenceCategory) {
     setTarget(category);
-    input.current?.click();
+    if (input.current) {
+      input.current.value = "";
+      input.current.click();
+    }
   }
 
   async function picked(e: ChangeEvent<HTMLInputElement>) {
@@ -37,17 +40,23 @@ export function EvidenceSection({ caseId }: { caseId: string }) {
     if (!target || files.length === 0) return;
     setUploading(target);
     let done = 0;
-    for (const file of files) {
-      try {
-        await uploadEvidence(session, caseId, target, file);
-        done++;
-      } catch (err) {
-        console.error(err);
-        toast.error(err instanceof CaseError ? err.message : describeError(err, `Could not upload ${file.name}. Try again.`));
+    try {
+      for (const file of files) {
+        try {
+          await uploadEvidence(session, caseId, target, file);
+          done++;
+        } catch (err) {
+          console.error(err);
+          toast.error(err instanceof CaseError ? err.message : describeError(err, `Could not upload ${file.name}. Try again.`));
+        }
       }
+      if (done > 0) {
+        toast.success(`${done} file${done === 1 ? "" : "s"} attached to ${target}.`);
+      }
+    } finally {
+      setUploading(null);
+      setTarget(null);
     }
-    if (done) toast.success(`${done} file${done === 1 ? "" : "s"} attached to ${target}.`);
-    setUploading(null);
   }
 
   async function remove(u: Upload) {
@@ -71,29 +80,46 @@ export function EvidenceSection({ caseId }: { caseId: string }) {
           <div className="grid gap-3 sm:grid-cols-3">
             {TILES.map(([I, l]) => {
               const n = uploads?.filter((u) => u.category === l).length ?? 0;
+              const isUploadingThis = uploading === l;
               return (
-                <button type="button" key={l} disabled={uploads === null || uploading !== null} onClick={() => choose(l)} className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-input p-6 text-center hover:bg-muted disabled:opacity-60">
-                  {uploading === l ? <Loader2 className="h-6 w-6 animate-spin text-primary" /> : <I className="h-6 w-6 text-primary" />}
+                <button
+                  type="button"
+                  key={l}
+                  disabled={uploads === null || uploading !== null}
+                  onClick={() => choose(l)}
+                  className="flex flex-col items-center gap-2 rounded-lg border-2 border-dashed border-input p-6 text-center transition-colors hover:bg-muted disabled:opacity-60 cursor-pointer"
+                >
+                  {isUploadingThis ? <Loader2 className="h-6 w-6 animate-spin text-primary" /> : <I className="h-6 w-6 text-primary" />}
                   <span className="text-sm font-semibold">{l}</span>
                   <span className="text-xs text-muted-foreground">
-                    {uploading === l ? "Uploading…" : uploads === null ? "Loading…" : n === 0 ? "None attached" : `${n} attached`}
+                    {isUploadingThis ? "Uploading…" : uploads === null ? "Loading…" : n === 0 ? "Click to attach files" : `${n} attached`}
                   </span>
                 </button>
               );
             })}
           </div>
           {uploads && uploads.length > 0 && (
-            <ul className="mt-4 divide-y divide-border rounded-lg border border-border">
+            <ul className="mt-4 divide-y divide-border rounded-lg border border-border overflow-hidden bg-card">
               {uploads.map((u) => {
                 const t = formatDateTime(u.uploadedAt);
+                const isImg = u.fileType.startsWith("image/") || u.downloadURL.startsWith("data:image/");
                 return (
-                  <li key={u.id} className="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+                  <li key={u.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
+                    {isImg ? (
+                      <div className="h-10 w-10 shrink-0 overflow-hidden rounded border border-border bg-muted flex items-center justify-center">
+                        <img src={u.downloadURL} alt={u.fileName} className="h-full w-full object-cover" />
+                      </div>
+                    ) : (
+                      <div className="h-10 w-10 shrink-0 rounded border border-border bg-muted flex items-center justify-center text-primary">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                    )}
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{u.fileName}</p>
                       <p className="text-xs text-muted-foreground">{u.category} · {size(u.size)} · {t.date} {t.time} · {u.uploadedBy}</p>
                     </div>
                     <Button asChild variant="outline" size="sm">
-                      <a href={u.downloadURL} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /> Open</a>
+                      <a href={u.downloadURL} target="_blank" rel="noreferrer"><ExternalLink className="h-4 w-4" /> View</a>
                     </Button>
                     <Button variant="outline" size="sm" disabled={removing === u.id} onClick={() => remove(u)} aria-label={`Remove ${u.fileName}`}>
                       {removing === u.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Remove

@@ -9,7 +9,7 @@ import { deriveNeeds } from "./needs";
  * here, so a different implementation can replace it without touching the UI.
  * Deterministic: the same primary data always yields the same output.
  */
-export const ENGINE_VERSION = "rules-1.0";
+export const ENGINE_VERSION = "rules-1.1";
 
 export function processCase(c: CasePrimary): CaseDerived {
   if (!c.assessment) {
@@ -37,15 +37,17 @@ export function processCase(c: CasePrimary): CaseDerived {
   const works = buildScheduleOfWorks(needs, layout);
   const funding = fundingPosition(works, c.funding?.applicantContribution ?? 0);
 
-  const stage: Stage = !designApproved
+  const stage: Stage = !c.design
     ? "Design"
-    : c.costing?.confirmedTotal !== funding.total
-      ? "Costing"
-      : c.funding?.reviewedTotal !== funding.total
-        ? "Funding Review"
-        : c.decision?.outcome !== "Approved"
-          ? "Council Approval"
-          : "Approved";
+    : !designApproved && !c.costing
+      ? "Design"
+      : c.costing?.confirmedTotal !== funding.total
+        ? "Costing"
+        : c.funding?.reviewedTotal !== funding.total
+          ? "Funding Review"
+          : c.decision?.outcome !== "Approved"
+            ? "Council Approval"
+            : "Approved";
 
   return {
     engineVersion: ENGINE_VERSION,
@@ -71,6 +73,6 @@ function deriveStatus(stage: Stage, c: CasePrimary): CaseStatus {
 }
 
 export { deriveNeeds, describeForApplicant, doorRequirement } from "./needs";
-export { generateLayout, moveWc } from "./layout";
+export { generateLayout, moveWc, moveComponent } from "./layout";
 export { buildScheduleOfWorks, fundingPosition, MAX_GRANT, RATES } from "./costing";
 export { computeMetrics } from "./metrics";
