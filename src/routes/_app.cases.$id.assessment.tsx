@@ -161,7 +161,7 @@ function Assessment() {
           </div>
         </Section>
         <Section
-          title="Room Measurements"
+          title="Approx Room Measurement"
           description="Enter room dimensions in your preferred unit."
           action={
             <div className="flex items-center gap-2">

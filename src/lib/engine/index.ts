@@ -9,7 +9,7 @@ import { deriveNeeds } from "./needs";
  * here, so a different implementation can replace it without touching the UI.
  * Deterministic: the same primary data always yields the same output.
  */
-export const ENGINE_VERSION = "rules-1.1";
+export const ENGINE_VERSION = "rules-1.2";
 
 export function processCase(c: CasePrimary): CaseDerived {
   if (!c.assessment) {
@@ -34,8 +34,16 @@ export function processCase(c: CasePrimary): CaseDerived {
   const rules = runRules(layout);
   const rulesPassed = rules.filter((r) => r.status === "passed").length;
   const designApproved = c.design !== null && rulesPassed === rules.length;
-  const works = buildScheduleOfWorks(needs, layout);
-  const funding = fundingPosition(works, c.funding?.applicantContribution ?? 0);
+  const detectedWorks = buildScheduleOfWorks(needs, layout);
+  const works = c.costing?.customWorks && c.costing.customWorks.length > 0 ? c.costing.customWorks : detectedWorks;
+  const baseFunding = fundingPosition(works, c.funding?.applicantContribution ?? 0);
+  const funding = c.funding?.customDfgGrant !== undefined
+    ? {
+        ...baseFunding,
+        dfg: c.funding.customDfgGrant,
+        withinLimit: c.funding.customDfgGrant <= baseFunding.ceiling,
+      }
+    : baseFunding;
 
   const stage: Stage = !c.design
     ? "Design"
@@ -73,6 +81,6 @@ function deriveStatus(stage: Stage, c: CasePrimary): CaseStatus {
 }
 
 export { deriveNeeds, describeForApplicant, doorRequirement } from "./needs";
-export { generateLayout, moveWc, moveComponent } from "./layout";
+export { generateLayout, moveWc, moveComponent, rotateComponent, setComponentRotation } from "./layout";
 export { buildScheduleOfWorks, fundingPosition, MAX_GRANT, RATES } from "./costing";
 export { computeMetrics } from "./metrics";

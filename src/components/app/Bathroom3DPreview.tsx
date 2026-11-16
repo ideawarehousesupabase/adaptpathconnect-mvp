@@ -41,23 +41,46 @@ export function Bathroom3DPreview({ layout }: Props) {
   const vbW = maxX - minX;
   const vbH = maxY - minY;
 
+  const rotPoint = (px: number, py: number, cx: number, cy: number, rot = 0) => {
+    if (!rot) return { x: px, y: py };
+    const rad = (rot * Math.PI) / 180;
+    const cosA = Math.cos(rad);
+    const sinA = Math.sin(rad);
+    const dx = px - cx;
+    const dy = py - cy;
+    return {
+      x: cx + dx * cosA - dy * sinA,
+      y: cy + dx * sinA + dy * cosA,
+    };
+  };
+
   // Render 3D box fixture
   const render3DBox = (
     c: PlacedComponent,
     h: number,
     colors: { top: string; left: string; right: string; stroke: string },
-    label?: string
+    label?: string,
+    origin?: { cx: number; cy: number; rot: number }
   ) => {
     const { x, y, w, d } = c;
-    const b0 = toIso(x, y, 0);
-    const b1 = toIso(x + w, y, 0);
-    const b2 = toIso(x + w, y + d, 0);
-    const b3 = toIso(x, y + d, 0);
+    const cx = origin ? origin.cx : x + w / 2;
+    const cy = origin ? origin.cy : y + d / 2;
+    const rot = origin ? origin.rot : (c.rotation ?? 0);
 
-    const t0 = toIso(x, y, h);
-    const t1 = toIso(x + w, y, h);
-    const t2 = toIso(x + w, y + d, h);
-    const t3 = toIso(x, y + d, h);
+    const p0 = rotPoint(x, y, cx, cy, rot);
+    const p1 = rotPoint(x + w, y, cx, cy, rot);
+    const p2 = rotPoint(x + w, y + d, cx, cy, rot);
+    const p3 = rotPoint(x, y + d, cx, cy, rot);
+
+    const b0 = toIso(p0.x, p0.y, 0);
+    const b1 = toIso(p1.x, p1.y, 0);
+    const b2 = toIso(p2.x, p2.y, 0);
+    const b3 = toIso(p3.x, p3.y, 0);
+
+    const t0 = toIso(p0.x, p0.y, h);
+    const t1 = toIso(p1.x, p1.y, h);
+    const t2 = toIso(p2.x, p2.y, h);
+    const t3 = toIso(p3.x, p3.y, h);
 
     return (
       <g key={c.key} className="transition-all duration-300">
@@ -119,23 +142,33 @@ export function Bathroom3DPreview({ layout }: Props) {
   const renderShower = () => {
     const s = components.shower;
     if (!s) return null;
-    const { x, y, w, d } = s;
-    const p0 = toIso(x, y, 0);
-    const p1 = toIso(x + w, y, 0);
-    const p2 = toIso(x + w, y + d, 0);
-    const p3 = toIso(x, y + d, 0);
+    const { x, y, w, d, rotation = 0 } = s;
+    const cx = x + w / 2;
+    const cy = y + d / 2;
+
+    const sp0 = rotPoint(x, y, cx, cy, rotation);
+    const sp1 = rotPoint(x + w, y, cx, cy, rotation);
+    const sp2 = rotPoint(x + w, y + d, cx, cy, rotation);
+    const sp3 = rotPoint(x, y + d, cx, cy, rotation);
+
+    const p0 = toIso(sp0.x, sp0.y, 0);
+    const p1 = toIso(sp1.x, sp1.y, 0);
+    const p2 = toIso(sp2.x, sp2.y, 0);
+    const p3 = toIso(sp3.x, sp3.y, 0);
 
     // Glass screen on the open edge
-    const gTop0 = toIso(x + w, y, 1750);
-    const gTop1 = toIso(x + w, y + d, 1750);
-    const gBot0 = toIso(x + w, y, 0);
-    const gBot1 = toIso(x + w, y + d, 0);
+    const gTop0 = toIso(sp1.x, sp1.y, 1750);
+    const gTop1 = toIso(sp2.x, sp2.y, 1750);
+    const gBot0 = p1;
+    const gBot1 = p2;
 
     // Shower head position
-    const shPoleTop = toIso(x + 120, y + 60, 1900);
-    const shPoleBot = toIso(x + 120, y + 60, 900);
-    const shHead = toIso(x + 350, y + 250, 1950);
-    const drain = toIso(x + w / 2, y + d / 2, 0);
+    const shPoleTopP = rotPoint(x + 120, y + 60, cx, cy, rotation);
+    const shPoleTop = toIso(shPoleTopP.x, shPoleTopP.y, 1900);
+    const shPoleBot = toIso(shPoleTopP.x, shPoleTopP.y, 900);
+    const shHeadP = rotPoint(x + 350, y + 250, cx, cy, rotation);
+    const shHead = toIso(shHeadP.x, shHeadP.y, 1950);
+    const drain = toIso(cx, cy, 0);
 
     return (
       <g key="shower">
@@ -180,7 +213,11 @@ export function Bathroom3DPreview({ layout }: Props) {
   const renderWc = () => {
     const wc = components.wc;
     if (!wc) return null;
-    const { x, y, w, d } = wc;
+    const { x, y, w, d, rotation = 0 } = wc;
+    const cx = x + w / 2;
+    const cy = y + d / 2;
+    const origin = { cx, cy, rot: rotation };
+
     // Cistern at back wall
     const cisternComp: PlacedComponent = {
       ...wc,
@@ -199,12 +236,15 @@ export function Bathroom3DPreview({ layout }: Props) {
           panComp,
           480, // Raised height WC
           { top: "#f8fafc", left: "#cbd5e1", right: "#e2e8f0", stroke: "#64748b" },
-          "Accessible WC"
+          "Accessible WC",
+          origin
         )}
         {render3DBox(
           cisternComp,
           820, // Cistern height
-          { top: "#ffffff", left: "#94a3b8", right: "#cbd5e1", stroke: "#64748b" }
+          { top: "#ffffff", left: "#94a3b8", right: "#cbd5e1", stroke: "#64748b" },
+          undefined,
+          origin
         )}
       </g>
     );
@@ -213,9 +253,18 @@ export function Bathroom3DPreview({ layout }: Props) {
   const renderBasin = () => {
     const b = components.basin;
     if (!b) return null;
-    const { x, y, w, d } = b;
-    const basinTop = toIso(x + w / 2, y + 100, 780);
-    const mirrorTop = toIso(x + w / 2, y, 1650);
+    const { x, y, w, d, rotation = 0 } = b;
+    const cx = x + w / 2;
+    const cy = y + d / 2;
+    const btP = rotPoint(x + w / 2, y + 100, cx, cy, rotation);
+    const basinTop = toIso(btP.x, btP.y, 780);
+
+    const mP0 = rotPoint(x + 40, y, cx, cy, rotation);
+    const mP1 = rotPoint(x + w - 40, y, cx, cy, rotation);
+    const m0 = toIso(mP0.x, mP0.y, 900);
+    const m1 = toIso(mP1.x, mP1.y, 900);
+    const m2 = toIso(mP1.x, mP1.y, 1600);
+    const m3 = toIso(mP0.x, mP0.y, 1600);
 
     return (
       <g key="basin">
@@ -226,18 +275,12 @@ export function Bathroom3DPreview({ layout }: Props) {
           "Accessible Basin"
         )}
         {/* Wall mirror above basin */}
-        <g>
-          const m0 = toIso(x + 40, y, 900);
-          const m1 = toIso(x + w - 40, y, 900);
-          const m2 = toIso(x + w - 40, y, 1600);
-          const m3 = toIso(x + 40, y, 1600);
-          <polygon
-            points={`${toIso(x + 40, y, 900).x},${toIso(x + 40, y, 900).y} ${toIso(x + w - 40, y, 900).x},${toIso(x + w - 40, y, 900).y} ${toIso(x + w - 40, y, 1600).x},${toIso(x + w - 40, y, 1600).y} ${toIso(x + 40, y, 1600).x},${toIso(x + 40, y, 1600).y}`}
-            fill="rgba(224, 242, 254, 0.6)"
-            stroke="#94a3b8"
-            strokeWidth="4"
-          />
-        </g>
+        <polygon
+          points={`${m0.x},${m0.y} ${m1.x},${m1.y} ${m2.x},${m2.y} ${m3.x},${m3.y}`}
+          fill="rgba(224, 242, 254, 0.6)"
+          stroke="#94a3b8"
+          strokeWidth="4"
+        />
         {/* Chrome mixer tap */}
         <circle cx={basinTop.x} cy={basinTop.y - 30} r="10" fill="#94a3b8" />
         <line x1={basinTop.x} y1={basinTop.y} x2={basinTop.x} y2={basinTop.y - 30} stroke="#cbd5e1" strokeWidth="8" />
@@ -259,9 +302,13 @@ export function Bathroom3DPreview({ layout }: Props) {
   const renderRail = () => {
     const rail = components.rail;
     if (!rail) return null;
-    const { x, y, w, d } = rail;
-    const rStart = toIso(x, y, 750);
-    const rEnd = toIso(x, y + d, 750);
+    const { x, y, w, d, rotation = 0 } = rail;
+    const cx = x + w / 2;
+    const cy = y + d / 2;
+    const rp0 = rotPoint(x, y, cx, cy, rotation);
+    const rp1 = rotPoint(x, y + d, cx, cy, rotation);
+    const rStart = toIso(rp0.x, rp0.y, 750);
+    const rEnd = toIso(rp1.x, rp1.y, 750);
     return (
       <g key="rail">
         <line
@@ -289,11 +336,15 @@ export function Bathroom3DPreview({ layout }: Props) {
   const renderDoor = () => {
     const door = components.door;
     if (!door) return null;
-    const { x, y, w } = door;
-    const d0 = toIso(x, y, 0);
-    const d1 = toIso(x + w, y, 0);
-    const dTop0 = toIso(x, y, 2000);
-    const dTop1 = toIso(x + w, y, 2000);
+    const { x, y, w, d = 60, rotation = 0 } = door;
+    const cx = x + w / 2;
+    const cy = y + d / 2;
+    const dp0 = rotPoint(x, y, cx, cy, rotation);
+    const dp1 = rotPoint(x + w, y, cx, cy, rotation);
+    const d0 = toIso(dp0.x, dp0.y, 0);
+    const d1 = toIso(dp1.x, dp1.y, 0);
+    const dTop0 = toIso(dp0.x, dp0.y, 2000);
+    const dTop1 = toIso(dp1.x, dp1.y, 2000);
 
     return (
       <g key="door">

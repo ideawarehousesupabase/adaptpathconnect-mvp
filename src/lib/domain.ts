@@ -76,6 +76,7 @@ export interface Assessment {
 export interface ComponentCoordinate {
   x: number;
   y: number;
+  rotation?: number; // 0, 90, 180, 270 degrees
 }
 
 /** Layout values edited by the user; fixtures can be positioned manually. */
@@ -90,12 +91,16 @@ export interface CostingInput {
   confirmedAt: string;
   /** Total at confirmation; a later change to the derived total re-opens costing. */
   confirmedTotal: number;
+  customWorks?: WorkItem[];
+  isManual?: boolean;
 }
 
 export interface FundingInput {
   applicantContribution: number;
+  customDfgGrant?: number;
   reviewedAt: string;
   reviewedTotal: number;
+  isManual?: boolean;
 }
 
 export interface Decision {
@@ -103,6 +108,12 @@ export interface Decision {
   note: string;
   at: string;
   by: string;
+}
+
+export interface MilestoneRecord {
+  at: string;
+  by: string;
+  notes?: string;
 }
 
 export interface CasePrimary extends Referral {
@@ -113,6 +124,8 @@ export interface CasePrimary extends Referral {
   costing: CostingInput | null;
   funding: FundingInput | null;
   decision: Decision | null;
+  installation?: MilestoneRecord | null;
+  completion?: MilestoneRecord | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -144,6 +157,7 @@ export interface PlacedComponent {
   y: number; // mm from top wall
   w: number;
   d: number;
+  rotation?: number; // 0, 90, 180, 270 degrees
   detail: string;
 }
 
@@ -238,6 +252,8 @@ export const EVENT_TYPES = [
   "revision_requested",
   "evidence_uploaded",
   "evidence_removed",
+  "installation_accepted",
+  "completion_accepted",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 

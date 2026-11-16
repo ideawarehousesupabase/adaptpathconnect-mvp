@@ -23,8 +23,14 @@ export function workflowSteps(c: DfgCase): { label: string; state: StepState }[]
   const cur = decisionIndex[c.stage] ?? 0;
   return [
     ...DECISION_ORDER.map((label, i) => ({ label, state: (i < cur ? "done" : i === cur ? "current" : "future") as StepState })),
-    { label: "Installation", state: "future" },
-    { label: "Completion", state: "future" },
+    {
+      label: "Installation",
+      state: (c.installation ? "done" : c.stage === "Approved" ? "current" : "future") as StepState,
+    },
+    {
+      label: "Completion",
+      state: (c.completion ? "done" : c.installation ? "current" : "future") as StepState,
+    },
   ];
 }
 
@@ -36,5 +42,8 @@ export function caseRecords(c: DfgCase): { name: string; at: string }[] {
   if (c.design) out.push({ name: `Bathroom Design V${c.design.version}`, at: c.design.savedAt });
   if (c.costing && d.funding && c.costing.confirmedTotal === d.funding.total) out.push({ name: "Schedule of Works", at: c.costing.confirmedAt });
   if (c.funding && d.funding && c.funding.reviewedTotal === d.funding.total) out.push({ name: "Funding Assessment", at: c.funding.reviewedAt });
+  if (c.decision) out.push({ name: `Council Decision: ${c.decision.outcome}`, at: c.decision.at });
+  if (c.installation) out.push({ name: "Installation Confirmation", at: c.installation.at });
+  if (c.completion) out.push({ name: "Final Completion Sign-Off", at: c.completion.at });
   return out;
 }

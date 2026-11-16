@@ -114,9 +114,10 @@ export function generateLayout(a: Assessment, needs: NeedsProfile, design: Desig
         ...c,
         x: clamp(Math.round(pos.x), 0, Math.max(0, W - c.w)),
         y: clamp(Math.round(pos.y), 0, Math.max(0, D - c.d)),
+        rotation: pos.rotation ?? 0,
       };
     }
-    return c;
+    return { ...c, rotation: 0 };
   });
 
   const layout: BathroomLayout = {
@@ -141,6 +142,7 @@ export function moveComponent(
   key: ComponentKey,
   x: number,
   y: number,
+  rotation?: number,
   name = "Custom",
 ): BathroomLayout {
   const W = layout.roomW;
@@ -154,6 +156,50 @@ export function moveComponent(
         ...c,
         x: clamp(Math.round(x), 0, Math.max(0, W - c.w)),
         y: clamp(Math.round(y), 0, Math.max(0, D - c.d)),
+        rotation: rotation !== undefined ? rotation : (c.rotation ?? 0),
+      };
+    }),
+  };
+}
+
+/** Returns a copy of the layout with a component rotated by deltaAngle degrees (default 90°). */
+export function rotateComponent(
+  layout: BathroomLayout,
+  key: ComponentKey,
+  deltaAngle = 90,
+  name = "Custom",
+): BathroomLayout {
+  return {
+    ...layout,
+    name,
+    components: layout.components.map((c) => {
+      if (c.key !== key) return c;
+      const current = c.rotation ?? 0;
+      const next = ((current + deltaAngle) % 360 + 360) % 360;
+      return {
+        ...c,
+        rotation: next,
+      };
+    }),
+  };
+}
+
+/** Returns a copy of the layout with a component rotated to an absolute angle (0, 90, 180, 270). */
+export function setComponentRotation(
+  layout: BathroomLayout,
+  key: ComponentKey,
+  angle: number,
+  name = "Custom",
+): BathroomLayout {
+  const norm = ((angle % 360) + 360) % 360;
+  return {
+    ...layout,
+    name,
+    components: layout.components.map((c) => {
+      if (c.key !== key) return c;
+      return {
+        ...c,
+        rotation: norm,
       };
     }),
   };

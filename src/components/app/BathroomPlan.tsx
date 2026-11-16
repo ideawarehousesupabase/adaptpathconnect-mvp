@@ -100,11 +100,12 @@ export function BathroomPlan({
     if (!f) return null;
     const isSel = selected === k;
     const isDraggingThis = dragging?.key === k;
+    const rot = f.rotation ?? 0;
     return (
       <g
         key={k}
         role={onSelect ? "button" : undefined}
-        aria-label={`${f.label} (click or drag to move)`}
+        aria-label={`${f.label} (click or drag to move, rotate)`}
         tabIndex={onSelect ? 0 : undefined}
         onClick={(e) => {
           e.stopPropagation();
@@ -124,7 +125,7 @@ export function BathroomPlan({
           onSelect && "cursor-grab active:cursor-grabbing",
           isDraggingThis ? "opacity-90" : "transition-transform duration-100"
         )}
-        style={{ transform: `translate(${f.x}px, ${f.y}px)` }}
+        transform={`translate(${f.x}, ${f.y}) rotate(${rot}, ${f.w / 2}, ${f.d / 2})`}
       >
         <rect
           width={f.w}
@@ -146,6 +147,7 @@ export function BathroomPlan({
             className="fill-plan-wall pointer-events-none select-none"
             fontSize={k === "seat" ? 60 : 75}
             fontWeight={600}
+            transform={rot ? `rotate(${-rot}, ${f.w / 2}, ${f.d / 2})` : undefined}
           >
             {k === "shower" ? "" : f.label}
           </text>
@@ -250,36 +252,84 @@ export function BathroomPlan({
 
       {clearanceZone}
 
-      {/* walls */}
-      {c.door && (
-        <path
-          d={`M${c.door.x + c.door.w} 0 H${roomW} V${roomD} H0 V0 H${c.door.x}`}
-          className="fill-none stroke-plan-wall pointer-events-none"
-          strokeWidth={T * 1.6}
-          strokeLinejoin="miter"
-        />
-      )}
+      {/* Outer room walls */}
+      <rect
+        x={0}
+        y={0}
+        width={roomW}
+        height={roomD}
+        className="fill-none stroke-plan-wall pointer-events-none"
+        strokeWidth={T * 1.6}
+        strokeLinejoin="miter"
+      />
 
-      {/* door swing */}
+      {/* Door - completely rotatable and movable */}
       {c.door && (
         <g
           role={onSelect ? "button" : undefined}
-          aria-label="Door"
+          aria-label="Door (click to select, drag or rotate)"
+          tabIndex={onSelect ? 0 : undefined}
           onClick={(e) => {
             e.stopPropagation();
             onSelect?.("door");
           }}
-          className={onSelect ? "cursor-pointer" : undefined}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            handleStartDrag("door", e.clientX, e.clientY);
+          }}
+          onTouchStart={(e) => {
+            if (e.touches[0]) {
+              handleStartDrag("door", e.touches[0].clientX, e.touches[0].clientY);
+            }
+          }}
+          className={cn(
+            onSelect && "cursor-grab active:cursor-grabbing",
+            selected === "door" ? "opacity-100" : "opacity-90"
+          )}
+          transform={`translate(${c.door.x}, ${c.door.y}) rotate(${c.door.rotation ?? 0}, ${c.door.w / 2}, ${c.door.d / 2})`}
         >
+          {/* Threshold opening */}
+          <rect
+            width={c.door.w}
+            height={c.door.d || 60}
+            rx="6"
+            className={cn(
+              "fill-card",
+              selected === "door" ? "stroke-primary" : "stroke-plan-wall"
+            )}
+            strokeWidth={selected === "door" ? 16 : 10}
+          />
+          {/* Door leaf */}
+          <line
+            x1="0"
+            y1="0"
+            x2="0"
+            y2={-c.door.w}
+            className={selected === "door" ? "stroke-primary" : "stroke-plan-wall"}
+            strokeWidth={selected === "door" ? 14 : 8}
+            strokeLinecap="round"
+          />
+          {/* Door swing arc */}
           <path
-            d={`M${c.door.x} 0 L${c.door.x} ${-c.door.w} A${c.door.w} ${c.door.w} 0 0 1 ${c.door.x + c.door.w} 0`}
+            d={`M 0 ${-c.door.w} A ${c.door.w} ${c.door.w} 0 0 1 ${c.door.w} 0`}
             className={cn(
               "fill-transparent",
               selected === "door" ? "stroke-primary" : "stroke-muted-foreground"
             )}
-            strokeWidth={selected === "door" ? 16 : 8}
+            strokeWidth={selected === "door" ? 12 : 6}
             strokeDasharray="20 15"
           />
+          {/* Door label */}
+          <text
+            x={c.door.w / 2}
+            y={(c.door.d || 60) / 2 + 15}
+            textAnchor="middle"
+            fontSize={50}
+            fontWeight={600}
+            className="fill-plan-wall pointer-events-none select-none"
+          >
+            Door {c.door.w}
+          </text>
         </g>
       )}
 
@@ -300,7 +350,7 @@ export function BathroomPlan({
             {roomD} mm
           </text>
           {c.door && (
-            <text x={c.door.x + c.door.w / 2} y={-200} textAnchor="middle" stroke="none">
+            <text x={c.door.x + c.door.w / 2} y={c.door.y > 200 ? c.door.y - 80 : -200} textAnchor="middle" stroke="none">
               Door {c.door.w} mm
             </text>
           )}

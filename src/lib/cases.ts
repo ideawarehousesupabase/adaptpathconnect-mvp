@@ -16,9 +16,11 @@ import {
   type AuditEvent,
   type CaseDerived,
   type CasePrimary,
+  type ComponentCoordinate,
   type ComponentKey,
   type DfgCase,
   type EventType,
+  type WorkItem,
 } from "@/lib/domain";
 import { ENGINE_VERSION, processCase } from "@/lib/engine";
 import { RULESET } from "@/lib/rules";
@@ -61,6 +63,8 @@ function readPrimary(id: string, data: DocumentData): CasePrimary {
     costing: d.costing ?? null,
     funding: d.funding ?? null,
     decision: d.decision ?? null,
+    installation: d.installation ?? null,
+    completion: d.completion ?? null,
     createdAt: str(d.createdAt),
     updatedAt: str(d.updatedAt),
   };
@@ -190,6 +194,8 @@ function newCase(id: string, r: ReferralInput, at: string): CasePrimary {
     costing: null,
     funding: null,
     decision: null,
+    installation: null,
+    completion: null,
     createdAt: at,
     updatedAt: at,
   };
@@ -248,13 +254,13 @@ export function saveAssessment(actor: Actor, id: string, a: Omit<Assessment, "co
 export function saveDesign(
   actor: Actor,
   id: string,
-  wcXOrDesign: number | { wcX?: number; positions?: Partial<Record<ComponentKey, { x: number; y: number }>> },
+  wcXOrDesign: number | { wcX?: number; positions?: Partial<Record<ComponentKey, ComponentCoordinate>> },
 ) {
   return mutate(actor, id, (c) => {
     if (!c.assessment) throw new CaseError("Complete the OT assessment before saving a design.");
     const version = (c.design?.version ?? 0) + 1;
     let wcX: number;
-    let positions: Partial<Record<ComponentKey, { x: number; y: number }>> | undefined;
+    let positions: Partial<Record<ComponentKey, ComponentCoordinate>> | undefined;
 
     if (typeof wcXOrDesign === "number") {
       wcX = Math.round(wcXOrDesign);
@@ -284,29 +290,80 @@ export function saveDesign(
   });
 }
 
-export function confirmCosting(actor: Actor, id: string) {
+export function confirmCosting(actor: Actor, id: string, customWorks?: WorkItem[], customTotal?: number) {
   return mutate(actor, id, (c, d) => {
     if (!c.design || !d.funding) throw new CaseError("Save a bathroom design first.");
+    const works = customWorks && customWorks.length > 0 ? customWorks : d.works;
+    const total = customTotal !== undefined ? customTotal : (customWorks && customWorks.length > 0 ? customWorks.reduce((s, i) => s + i.cost, 0) : d.funding.total);
     return {
-      next: { ...c, costing: { confirmedAt: new Date().toISOString(), confirmedTotal: d.funding.total } },
-      events: [{ type: "costing_confirmed", action: "Schedule of works confirmed", detail: `${d.works.length} line items` }],
+      next: {
+        ...c,
+        costing: {
+          confirmedAt: new Date().toISOString(),
+          confirmedTotal: total,
+          customWorks: customWorks && customWorks.length > 0 ? customWorks : undefined,
+          isManual: !!(customWorks && customWorks.length > 0),
+        },
+      },
+      events: [{ type: "costing_confirmed", action: "Schedule of works confirmed", detail: `${works.length} line items (total: £${total.toLocaleString()})` }],
       clearRevision: true,
     };
   });
 }
 
-export function completeFundingReview(actor: Actor, id: string, applicantContribution: number) {
+export function completeFundingReview(actor: Actor, id: string, applicantContribution: number, customDfgGrant?: number) {
   return mutate(actor, id, (c, d) => {
     if (!d.funding || c.costing?.confirmedTotal !== d.funding.total) throw new CaseError("Confirm the schedule of works first.");
     if (!Number.isFinite(applicantContribution) || applicantContribution < 0 || applicantContribution > d.funding.total) {
       throw new CaseError("Applicant contribution must be between £0 and the estimated cost.");
     }
-    const next = { ...c, funding: { applicantContribution: Math.round(applicantContribution), reviewedAt: new Date().toISOString(), reviewedTotal: d.funding.total } };
+    const next = {
+      ...c,
+      funding: {
+        applicantContribution: Math.round(applicantContribution),
+        customDfgGrant: customDfgGrant !== undefined ? Math.round(customDfgGrant) : undefined,
+        reviewedAt: new Date().toISOString(),
+        reviewedTotal: d.funding.total,
+        isManual: customDfgGrant !== undefined,
+      },
+    };
     const f = processCase(next).funding!;
     return {
       next,
       events: [{ type: "funding_reviewed", action: "Funding assessment completed", detail: f.withinLimit ? "Within grant limit" : "Exceeds grant ceiling" }],
       clearRevision: true,
+    };
+  });
+}
+
+export function acceptInstallation(actor: Actor, id: string, notes = "") {
+  return mutate(actor, id, (c, d) => {
+    if (c.stage !== "Approved" && d.stage !== "Approved") {
+      throw new CaseError("The case must be approved by the council before installation can be accepted.");
+    }
+    const at = new Date().toISOString();
+    return {
+      next: {
+        ...c,
+        installation: { at, by: actor.fullName, notes: notes.trim() },
+      },
+      events: [{ type: "case_updated", action: "Installation accepted and confirmed", detail: `Accepted by ${actor.fullName}${notes ? `: ${notes}` : ""}` }],
+    };
+  });
+}
+
+export function acceptCompletion(actor: Actor, id: string, notes = "") {
+  return mutate(actor, id, (c, d) => {
+    if (!c.installation) {
+      throw new CaseError("Installation must be accepted before final completion can be signed off.");
+    }
+    const at = new Date().toISOString();
+    return {
+      next: {
+        ...c,
+        completion: { at, by: actor.fullName, notes: notes.trim() },
+      },
+      events: [{ type: "case_updated", action: "Final project completion accepted", detail: `Signed off by ${actor.fullName}${notes ? `: ${notes}` : ""}` }],
     };
   });
 }

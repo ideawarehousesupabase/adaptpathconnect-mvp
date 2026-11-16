@@ -79,12 +79,19 @@ export function StepIcon({ s }: { s: StepState }) {
   return <Circle className="h-5 w-5 text-muted-foreground/50" />;
 }
 
-export function Timeline({ steps }: { steps: { label: string; state: StepState }[] }) {
+export function Timeline({ steps, onStepClick }: { steps: { label: string; state: StepState }[]; onStepClick?: (label: string) => void }) {
   const lbl: Record<StepState, string> = { done: "Complete", current: "Current", pending: "Pending", future: "Future" };
   return (
     <ol className="flex flex-wrap gap-y-4">
       {steps.map((s, i) => (
-        <li key={s.label} className="flex min-w-[110px] flex-1 flex-col items-center text-center">
+        <li
+          key={s.label}
+          onClick={() => onStepClick?.(s.label)}
+          className={cn(
+            "flex min-w-[110px] flex-1 flex-col items-center text-center transition-all",
+            onStepClick && "cursor-pointer hover:opacity-85 select-none"
+          )}
+        >
           <div className="flex w-full items-center">
             <div className={cn("h-0.5 flex-1", i === 0 ? "bg-transparent" : s.state === "done" || s.state === "current" ? "bg-success" : "bg-border")} />
             <div className={cn("rounded-full p-1.5", s.state === "current" ? "bg-info-soft ring-2 ring-primary/30" : "bg-card")}>

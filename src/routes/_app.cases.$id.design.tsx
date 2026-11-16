@@ -14,6 +14,7 @@ import {
   ChevronUp,
   ChevronDown,
   RotateCcw,
+  RotateCw,
   Printer,
   ArrowRight,
   Save,
@@ -29,7 +30,7 @@ import { BathroomPlan } from "@/components/app/BathroomPlan";
 import { CaseError, saveDesign } from "@/lib/cases";
 import { describeError } from "@/lib/firebase";
 import type { BathroomLayout, ComponentKey } from "@/lib/domain";
-import { moveComponent, moveWc } from "@/lib/engine";
+import { moveComponent, moveWc, rotateComponent, setComponentRotation } from "@/lib/engine";
 import { RULESET, runRules, suggestLayoutFix, wcSideClearance } from "@/lib/rules";
 import { cn } from "@/lib/utils";
 import { useCase, useCurrentUser } from "@/lib/workspace";
@@ -104,9 +105,9 @@ function Studio({ id, saved, hasSavedDesign, approved }: { id: string; saved: Ba
   async function save() {
     setBusy(true);
     try {
-      const positions: Partial<Record<ComponentKey, { x: number; y: number }>> = {};
+      const positions: Partial<Record<ComponentKey, { x: number; y: number; rotation?: number }>> = {};
       for (const item of layout.components) {
-        positions[item.key] = { x: item.x, y: item.y };
+        positions[item.key] = { x: item.x, y: item.y, rotation: item.rotation ?? 0 };
       }
       await saveDesign(session, id, {
         wcX: comp("wc")?.x ?? 800,
@@ -158,7 +159,14 @@ function Studio({ id, saved, hasSavedDesign, approved }: { id: string; saved: Ba
                     <span className="flex items-center gap-2">
                       <I className="h-4 w-4" /> {comp(k)!.label}
                     </span>
-                    <Move className="h-3.5 w-3.5 text-muted-foreground opacity-60" />
+                    <span className="flex items-center gap-1.5 text-muted-foreground">
+                      {(comp(k)?.rotation ?? 0) > 0 && (
+                        <span className="text-[10px] font-mono bg-primary/10 text-primary font-semibold px-1 rounded">
+                          {comp(k)!.rotation}°
+                        </span>
+                      )}
+                      <Move className="h-3.5 w-3.5 opacity-60" />
+                    </span>
                   </button>
                 </li>
               );
@@ -266,6 +274,44 @@ function Studio({ id, saved, hasSavedDesign, approved }: { id: string; saved: Ba
                   <div />
                 </div>
               </div>
+
+              {/* Rotation controller */}
+              <div className="mt-3 space-y-1.5 border-t border-border/60 pt-2.5">
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span className="font-medium text-foreground flex items-center gap-1">
+                    <RotateCw className="h-3 w-3 text-primary" /> Rotate {selected.label}:
+                  </span>
+                  <span className="font-mono text-xs font-semibold text-primary">
+                    {selected.rotation ?? 0}°
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 pt-0.5">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 flex-1 text-xs cursor-pointer gap-1"
+                    onClick={() => edit(rotateComponent(layout, selected.key, 90))}
+                    aria-label="Rotate 90 degrees"
+                  >
+                    <RotateCw className="h-3.5 w-3.5" /> +90°
+                  </Button>
+                  {[0, 90, 180, 270].map((deg) => (
+                    <button
+                      key={deg}
+                      type="button"
+                      onClick={() => edit(setComponentRotation(layout, selected.key, deg))}
+                      className={cn(
+                        "h-7 px-2 rounded text-[11px] font-mono cursor-pointer border transition-colors",
+                        (selected.rotation ?? 0) === deg
+                          ? "bg-primary text-primary-foreground border-primary font-bold shadow-sm"
+                          : "bg-background hover:bg-muted border-border text-foreground"
+                      )}
+                    >
+                      {deg}°
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </Section>
@@ -275,18 +321,30 @@ function Studio({ id, saved, hasSavedDesign, approved }: { id: string; saved: Ba
           title="2D Bathroom Canvas"
           description={`${layout.name}${dirty ? " · unsaved changes" : ""} · ${layout.roomW} × ${layout.roomD} mm`}
           action={
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setLayout(saved);
-                setDirty(false);
-              }}
-              disabled={!dirty}
-              className="cursor-pointer"
-            >
-              <RotateCcw className="h-4 w-4" /> Reset
-            </Button>
+            <div className="flex items-center gap-2">
+              {selected && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => edit(rotateComponent(layout, selected.key, 90))}
+                  className="cursor-pointer text-xs"
+                >
+                  <RotateCw className="h-3.5 w-3.5" /> Rotate {selected.label} ({selected.rotation ?? 0}°)
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setLayout(saved);
+                  setDirty(false);
+                }}
+                disabled={!dirty}
+                className="cursor-pointer"
+              >
+                <RotateCcw className="h-4 w-4" /> Reset
+              </Button>
+            </div>
           }
         >
           <div className="rounded-lg border border-border bg-muted/40 p-3">
