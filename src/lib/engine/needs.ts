@@ -36,8 +36,11 @@ export function deriveNeeds(a: Assessment): NeedsProfile {
   for (const n of a.needs) add(NEED_FEATURES[n].id, NEED_FEATURES[n].name, n);
 
   if (a.mobility === "Walking Aid") add("rails", "Grab rails", "Mobility: Walking Aid");
+  if (a.mobility === "Wheelchair") {
+    add("shower", "Level-access shower", "Mobility: Wheelchair user requires step-free bathing");
+    add("circulation", "Clear wheelchair circulation area", "Mobility: Wheelchair");
+  }
   if (has("shower") && a.transfer !== "Independent") add("seat", "Fold-down shower seat", `Transfer: ${a.transfer}`);
-  if (a.mobility === "Wheelchair") add("circulation", "Clear wheelchair circulation area", "Mobility: Wheelchair");
 
   const door = doorRequirement(a);
   if (a.doorWidth < door.min) add("door", `Door widening to ${door.target} mm`, `Door width: ${a.doorWidth} mm`);

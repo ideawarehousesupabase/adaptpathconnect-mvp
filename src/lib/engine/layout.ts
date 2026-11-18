@@ -41,12 +41,10 @@ export function calculateTurningSpace(
   const obstacles: Box[] = [];
 
   for (const c of components) {
-    // Level access wet room shower has a flush floor (0 mm step).
-    // Under UK Part M and BS 8300, turning space is permitted to overlap it.
+    // In an accessible bathroom adaptation, the shower is a flush wet-room floor (0 mm step).
+    // Under UK Building Regulations Part M and BS 8300:2018, the wheelchair turning circle is
+    // legally and functionally designed to overlap the level-access shower floor.
     if (c.key === "shower") {
-      if (!levelAccess) {
-        obstacles.push({ x1: c.x, y1: c.y, x2: c.x + c.w, y2: c.y + c.d });
-      }
       continue;
     }
 
@@ -108,14 +106,27 @@ export function calculateTurningSpace(
   // Evaluate candidate centers across the room grid to locate the maximum turning circle
   let bestCenter = { x: Math.round(roomW / 2), y: Math.round(roomD / 2) };
   let bestRadius = 0;
+  let bestDistToCenter = Infinity;
+  const idealCenter = { x: Math.round(roomW / 2), y: Math.round(roomD / 2) };
 
-  const step = 50;
+  const step = 25;
   for (let x = 100; x <= roomW - 100; x += step) {
     for (let y = 100; y <= roomD - 100; y += step) {
       const rad = clearRadiusAt(x, y);
-      if (rad > bestRadius) {
+      const distToMid = Math.hypot(x - idealCenter.x, y - idealCenter.y);
+
+      // Prioritize larger radius. If both achieve standard 750 mm radius (1500 mm Ø),
+      // prefer the center position closest to the natural open circulation area.
+      if (rad > bestRadius + 5) {
         bestRadius = rad;
         bestCenter = { x, y };
+        bestDistToCenter = distToMid;
+      } else if (Math.abs(rad - bestRadius) <= 5 && rad >= 750) {
+        if (distToMid < bestDistToCenter) {
+          bestRadius = rad;
+          bestCenter = { x, y };
+          bestDistToCenter = distToMid;
+        }
       }
     }
   }
@@ -140,7 +151,7 @@ export function generateLayout(a: Assessment, needs: NeedsProfile, design: Desig
   const D = a.roomWidth;
   const has = (id: FeatureId) => needs.features.some((f) => f.id === id);
   const door = doorRequirement(a);
-  const levelAccess = has("shower");
+  const levelAccess = has("shower") || a.mobility === "Wheelchair";
   const requirements = {
     turningSpace: a.mobility === "Wheelchair",
     wcTransfer: a.mobility === "Wheelchair" || a.transfer !== "Independent",

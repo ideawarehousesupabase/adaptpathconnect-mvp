@@ -9,7 +9,7 @@ import { deriveNeeds } from "./needs";
  * here, so a different implementation can replace it without touching the UI.
  * Deterministic: the same primary data always yields the same output.
  */
-export const ENGINE_VERSION = "rules-1.2";
+export const ENGINE_VERSION = "rules-1.3";
 
 export function processCase(c: CasePrimary): CaseDerived {
   if (!c.assessment) {
