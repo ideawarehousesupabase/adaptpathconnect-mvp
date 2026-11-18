@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Assessment, AuditEvent, CasePrimary, DfgCase } from "@/lib/domain";
-import { computeMetrics, deriveNeeds, generateLayout, moveWc, processCase } from "@/lib/engine";
+import { computeMetrics, deriveNeeds, generateLayout, moveComponent, moveWc, processCase } from "@/lib/engine";
 import { runRules, suggestLayoutFix, wcSideClearance } from "./rules";
 import { nextCaseRef } from "./cases";
 import { parseCsv, parseReferralCsv, validateAssessment, EMPTY_ASSESSMENT } from "./validation";
@@ -69,6 +69,22 @@ describe("layout and accessibility rules", () => {
     const rules = runRules(l);
     expect(rules.find((r) => r.id === "wc")?.status).toBe("review");
     expect(suggestLayoutFix(l, rules)).toBeNull();
+  });
+
+  it("dynamically passes wheelchair turning space when user moves WC to clear space", () => {
+    const a1800: Assessment = { ...assessment, roomLength: 2400, roomWidth: 1800 };
+    const { layout: l1800 } = generateLayout(a1800, deriveNeeds(a1800), null);
+    // When WC is moved to give generous transfer clearance (e.g. wcX = 2010 as in user case)
+    const moved = moveWc(l1800, 2010);
+    const rules = runRules(moved);
+    const turning = rules.find((r) => r.id === "turning");
+    expect(turning?.status).toBe("passed");
+    expect(moved.turningDiameter).toBeGreaterThanOrEqual(1500);
+  });
+
+  it("updates turning diameter dynamically when fixtures are moved", () => {
+    const crowded = moveComponent(layout, "wc", 800, 800);
+    expect(crowded.turningDiameter).toBeLessThan(layout.turningDiameter);
   });
 });
 

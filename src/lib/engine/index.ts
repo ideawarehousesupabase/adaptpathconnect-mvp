@@ -81,6 +81,6 @@ function deriveStatus(stage: Stage, c: CasePrimary): CaseStatus {
 }
 
 export { deriveNeeds, describeForApplicant, doorRequirement } from "./needs";
-export { generateLayout, moveWc, moveComponent, rotateComponent, setComponentRotation } from "./layout";
+export { generateLayout, moveWc, moveComponent, rotateComponent, setComponentRotation, calculateTurningSpace } from "./layout";
 export { buildScheduleOfWorks, fundingPosition, MAX_GRANT, RATES } from "./costing";
 export { computeMetrics } from "./metrics";

@@ -488,6 +488,7 @@ export function Bathroom3DPreview({ layout }: Props) {
               const tc = toIso(layout.turningCentre.x, layout.turningCentre.y, 0);
               const rx = (layout.turningDiameter / 2) * cos30;
               const ry = (layout.turningDiameter / 2) * sin30;
+              const ok = layout.turningDiameter >= 1500;
               return (
                 <g>
                   <ellipse
@@ -495,8 +496,8 @@ export function Bathroom3DPreview({ layout }: Props) {
                     cy={tc.y}
                     rx={rx}
                     ry={ry}
-                    fill="rgba(34, 197, 94, 0.08)"
-                    stroke="#22c55e"
+                    fill={ok ? "rgba(34, 197, 94, 0.08)" : "rgba(245, 158, 11, 0.08)"}
+                    stroke={ok ? "#22c55e" : "#f59e0b"}
                     strokeWidth="4"
                     strokeDasharray="15 10"
                   />
@@ -504,7 +505,7 @@ export function Bathroom3DPreview({ layout }: Props) {
                     x={tc.x}
                     y={tc.y}
                     textAnchor="middle"
-                    fill="#4ade80"
+                    fill={ok ? "#4ade80" : "#fbbf24"}
                     fontSize="18"
                     fontWeight="600"
                   >

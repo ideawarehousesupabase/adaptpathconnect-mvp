@@ -220,12 +220,24 @@ export function BathroomPlan({
             cx={tc.x}
             cy={tc.y}
             r={layout.turningDiameter / 2}
-            className="fill-transparent stroke-success"
+            className={cn(
+              "fill-transparent transition-all duration-200",
+              layout.turningDiameter >= 1500 ? "stroke-success" : "stroke-warning"
+            )}
             strokeWidth={8}
             strokeDasharray="30 20"
-            opacity={0.7}
+            opacity={0.8}
           />
-          <text x={tc.x} y={tc.y} textAnchor="middle" fontSize={60} className="fill-success" fontWeight={600}>
+          <text
+            x={tc.x}
+            y={tc.y}
+            textAnchor="middle"
+            fontSize={60}
+            className={cn(
+              "select-none font-bold",
+              layout.turningDiameter >= 1500 ? "fill-success" : "fill-warning"
+            )}
+          >
             Ø{layout.turningDiameter}
           </text>
         </g>
