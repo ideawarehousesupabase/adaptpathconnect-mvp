@@ -57,7 +57,7 @@ function Preview() {
             activeTab === "3d" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-muted-foreground"
           }`}
         >
-          <Box className="h-4 w-4" /> 3D Design Preview (Custom Model)
+          <Box className="h-4 w-4" /> Dynamic Design Image (3D Render)
         </button>
         <button
           type="button"
@@ -76,9 +76,9 @@ function Preview() {
             <Section className="p-4">
               <div className="mb-3 flex items-center justify-between">
                 <div>
-                  <h3 className="font-semibold text-base">3D Adaptation Preview</h3>
+                  <h3 className="font-semibold text-base">Dynamic Adaptation Preview & Image</h3>
                   <p className="text-xs text-muted-foreground">
-                    Matches your exact room size ({layout.roomW} × {layout.roomD} mm) and saved fixture placements.
+                    Matches your exact room size ({layout.roomW} × {layout.roomD} mm) and saved fixture placements. Export as a high-res PNG image anytime.
                   </p>
                 </div>
                 {status}
@@ -132,12 +132,13 @@ function Preview() {
               }
             />
             <KV k="OT Assessment" v={c.assessment ? "Completed" : "Not started"} />
+            <KV k="Image Export" v="Dynamic PNG Available" />
           </Section>
 
           <Section title="For the Applicant & Family">
             <p className="text-sm text-muted-foreground leading-relaxed">{describeForApplicant(needs)}</p>
             <p className="mt-3 text-xs text-muted-foreground border-t border-border pt-2">
-              The 3D preview accurately portrays the room proportions and equipment layout for discussion with the family.
+              The dynamic render accurately portrays the room proportions and equipment layout. You can download the dynamic PNG image to share with the family and contractors.
             </p>
           </Section>
         </div>
